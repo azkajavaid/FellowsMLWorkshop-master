@@ -1,0 +1,199 @@
+---
+title: "Machine Learning Worksheet"
+author: "Azka Javaid, Caleb Ki & Muling Si"
+date: "March 20, 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r message=FALSE, echo=FALSE}
+require(mosaic)
+library(mosaicData)
+library(gee)
+library(quantreg)
+library(nlme)
+library(lme4)
+library(dplyr)
+library(mdsr)
+library(class)
+library(caret) #loads varImp function 
+library(rpart) #defining decision trees
+library(partykit) #plot decision tree
+library(ROCR) #plots ROC curve 
+library(randomForest) 
+options(digits=3)
+trellis.par.set(theme=theme.mosaic())
+```
+
+# Data Preparation
+
+## Reading census data to predict income 
+```{r}
+census <- read.csv(
+  "http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data", 
+  header = FALSE
+)
+names(census) <- c("age", "workclass", "fnlwgt",
+                   "education", "education.num", 
+                   "marital.status", "occupation", 
+                   "relationship", "race", "sex", 
+                   "capital.gain", "capital.loss",
+                   "hours.per.week", "native.country",
+                   "income")
+```
+
+```{r}
+glimpse(census)
+```
+
+## Partitioning data in train and test sets 
+```{r}
+set.seed(164)
+n <- nrow(census)
+test <- sample.int(n, size = round(0.2 * n))
+train <- census[-test, ]
+test <- census[test, ]
+tally(~income, data = train, format = "percent")
+```
+
+# Logistic regression to model income 
+```{r}
+logmod <- glm(income ~ capital.gain + age + workclass + education +
+                marital.status + occupation + 
+                relationship + race + sex + 
+                capital.loss + hours.per.week,
+                data = train, family=binomial(link='logit'))
+```
+
+## Variable importance plot of logistic regression 
+```{r}
+head(varImp(logmod), 10)
+```
+
+## Calculating accuracy 
+```{r}
+pred = predict(logmod, newdata=test)
+accuracy <- table(pred, test[,"income"])
+sum(diag(accuracy))/sum(accuracy)
+```
+
+# K-nearest neighbor 
+```{r}
+trainX <- train %>%
+  select(age, education.num,capital.gain, capital.loss, hours.per.week)
+trainY <- train$income
+incomeknn <- knn(trainX, test=trainX, cl=trainY, k = 10)
+head(incomeknn)
+```
+
+## Calculating confusion matrix and accuracy 
+```{r}
+confusion <- tally(incomeknn~trainY, format="count")
+confusion
+sum(diag(confusion))/nrow(train)
+```
+
+## Observing changes with different k
+```{r}
+knn_error_rate <- function(x,y, numNeighbors, z=x){
+  y_hat <- knn(train =x, test=z, cl=y, k=numNeighbors)
+  return(sum(y_hat!=y)/nrow(x))
+}
+ks <- c(1:15,20,30,40,50)
+train_rate <- sapply(ks, FUN=knn_error_rate, x=trainX, y=trainY)
+knn_error_rates <- data.frame(k=ks, train_rates=train_rate)
+```
+
+## Plotting results 
+```{r}
+ggplot(data=knn_error_rates, aes(x=k,y=train_rate)) +
+  geom_point() + geom_line() + ylab("misclassification rate")
+```
+
+# Decision tree
+
+## Decision tree using capital gain
+```{r}
+mod_treeCap <- rpart(income ~ capital.gain, data = train)
+mod_treeCap 
+```
+
+## Decision tree using all predictors 
+```{r}
+form <- as.formula("income ~ age + workclass +
+                    education + marital.status +
+                    occupation + relationship + 
+                    race + sex + capital.gain + 
+                    capital.loss + hours.per.week")
+mod_tree <- rpart(form, data = train)
+mod_tree 
+```
+
+## Plotting decision tree 
+```{r}
+plot(as.party(mod_tree))
+```
+
+## Variable importance plot of decision tree 
+```{r}
+varImp(mod_tree)
+```
+
+## Calculating accuracy of decision tree 
+```{r}
+pred <- predict(mod_tree, test, type = "class")
+conf <- table(test$income, pred)
+sum(diag(conf))/sum(conf) #accuracy 
+```
+
+## Plotting ROC curve 
+```{r}
+income_prob <- predict(mod_tree, newdata=test, type="prob")
+perf <- prediction(income_prob[, 2], test$income) 
+perf <- performance(perf, measure = "tpr",
+                    x.measure = "fpr")
+plot(perf)
+```
+
+# Random Forest 
+```{r}
+mod_forest <- randomForest(formula = form, data = train,
+                           ntrain = 201, mtry = 3)
+```
+
+## Calculating model accuracy 
+```{r}
+sum(diag(mod_forest$confusion))/nrow(train)
+```
+
+## Calculating variable importance 
+```{r}
+importance(mod_forest) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column() %>%
+  arrange(desc(MeanDecreaseGini))
+```
+
+## Variable importance plot
+```{r}
+varImpPlot(mod_forest, type = 2)
+```
+
+# Clustering 
+
+```{r}
+WorldCities <- WorldCities %>%
+  arrange(desc(population)) %>%
+  select(longitude, latitude)
+
+city_clusts <- WorldCities %>%
+  kmeans(centers = 6) %>%
+  fitted("classes") %>%
+  as.character()
+
+WorldCities <- WorldCities %>% mutate(cluster = city_clusts)
+
+WorldCities %>% ggplot(aes(x = longitude, y = latitude)) +
+  geom_point(aes(color = cluster), alpha = 0.5)
+```

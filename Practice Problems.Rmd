@@ -1,0 +1,116 @@
+---
+title: "Machine Learning Workshop in R - Practice time!"
+author: "Azka Javaid, Caleb Ki & Muling Si"
+date: "3/20/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, echo=FALSE}
+#install.packages("caret")
+#install.packages("gee")
+#install.packages("ROCR")
+require(mosaic)
+library(mosaic)
+library(class)
+library(mosaicData)
+library(gee)
+library(quantreg)
+library(nlme)
+library(lme4)
+library(mdsr)
+library(caret) #loads varImp function 
+library(rpart) #defining decision trees
+library(partykit) #plot decision tree
+library(ROCR) #plots ROC curve 
+library(randomForest) 
+options(digits=3)
+trellis.par.set(theme=theme.mosaic())
+```
+
+###K-NN Practice
+
+We use the `iris` data set for this practice.
+
+```{r}
+data(iris)
+names(iris)
+```
+
+There are five variables in this dataset. Try fit knn to predict `Species` using the other four variables.
+
+
+```{r}
+X <- iris[, 1:4]
+Y <- iris[, 5]
+# Speciesknn <- knn()
+# confusion <- tally()
+# confusion
+# sum(diag(confusion))/nrow(testX)
+knn_error_rate <- function(x,y, numNeighbors, z=x){
+  y_hat <- knn(train =x, test=z, cl=y, k=numNeighbors)
+  return(sum(y_hat!=y)/nrow(x))
+}
+ks <- c(1:15,20,30,40,50)
+#train_rate <- sapply(ks, FUN=knn_error_rate, x=, y=)
+knn_error_rates <- data.frame(k=ks, train_rates=train_rate)
+ggplot(data=knn_error_rates, aes(x=k,y=train_rate))+geom_point()+geom_line()+ylab("misclassification rate")
+```
+
+Partition data in training and test sets by specifying the constant beta below. 
+
+```{r}
+beta <- ?
+n <- nrow(census)
+test <- sample.int(n, size = round(beta * n))
+train <- census[-test, ]
+test <- census[test, ]
+tally(~income, data = train, format = "percent")
+```
+
+###Decision Tree Practice 
+
+Make a decision tree model to predict species against variables of interest. 
+
+```{r}
+form <- as.formula("Species ~ ")
+mod_tree <- rpart(form, data = iris)
+```
+
+Plot the decision tree and compute variable importance. 
+
+```{r}
+#Hint: use as.party to convert tree to a party object and then plot it
+```
+
+Compute model accuracy below by filling in the code below.  
+
+```{r}
+pred <- predict(?, test, type = "class")
+conf <- table(?, pred)
+sum(diag(?))/sum(?) #accuracy 
+```
+
+### Practice using clustering
+
+
+```{r}
+require(Ecdat)
+data(Housing)
+colnames(Housing)
+```
+
+Cluster houses based on number of bedrooms, number of bathrooms, and the lotsize of the house with 6 different clusters. Write a description of each of the clusters.
+
+```{r}
+Housing <- Housing %>% select(?)
+clusts <- Housing %>%
+  kmeans(centers = ?) %>%
+  fitted("classes") %>%
+  as.character()
+
+Housing <- Housing %>% mutate(?)
+```
